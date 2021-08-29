@@ -3,6 +3,7 @@ from discord.ext import tasks
 import os
 from TwitterAPI import TwitterAPI
 from datetime import datetime
+import requests
 
 class Bot(discord.Client):
     
@@ -13,6 +14,7 @@ class Bot(discord.Client):
         self.twitter_user = self.get_twitter_user_by_id(self.twitter_user_id)
         self.news_text_channel_id = 807778867719962654
         self.twitter_last_tweet_in_text_channel = datetime.now() # Should be no problem for now. But it doesn't take care about tweets that got posted in the bot downtime.
+        self.twitch_user_id = "644758191" # https://twitch.tv/onuratv
         
     async def on_ready(self):
         self.update_loop.start()
@@ -45,3 +47,24 @@ class Bot(discord.Client):
             if tweet_time > self.twitter_last_tweet_in_text_channel:
                 self.twitter_last_tweet_in_text_channel = tweet_time
                 await self.get_channel(self.news_text_channel_id).send(f"https://twitter.com/{self.twitter_user['username']}/status/{tweet['id']}")
+
+        is_live = self.check_if_live_on_twitch()
+        if is_live:
+            await self.get_channel(self.news_text_channel_id).send("@everyone JETZT LIVE! https://twitch.tv/onuratv")
+
+
+    def check_if_live_on_twitch(self):
+        twitch_access_token = os.getenv("TWITCH_ACCESS_TOKEN")
+        twitch_client_id = os.getenv("TWITCH_CLIENT_ID")
+
+        headers = {
+            'Authorization': f'Bearer {twitch_access_token}',
+            'Client-Id': twitch_client_id
+        }
+
+        r = requests.get(f'https://api.twitch.tv/helix/users?id={self.twitch_user_id}', headers=headers)
+        data = r.json()
+        data = data['data'][0]
+        if data['type'] == 'live': return True
+        else: return False
+        
