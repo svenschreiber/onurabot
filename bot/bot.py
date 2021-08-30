@@ -9,6 +9,8 @@ class Bot(discord.Client):
     
     def __init__(self):
         super().__init__()
+        self.version = "2021.35a"
+        
         self.twitter_api = self.init_twitter_api()
         self.twitter_user_id = "1356336382722138113" # https://twitter.com/Onura_tv
         self.twitter_user = self.get_twitter_user_by_id(self.twitter_user_id)
@@ -17,9 +19,12 @@ class Bot(discord.Client):
         self.twitch_user_id = "644758191" # https://twitch.tv/onuratv
         
     async def on_ready(self):
+        activity = discord.Game(f"ver. {self.version}")
+        await self.change_presence(status=discord.Status.online, activity=activity)
+
         self.update_loop.start()
         print("[ONURABOT] Bot started.")
-
+        
     async def on_message(self, message):
         pass
 
