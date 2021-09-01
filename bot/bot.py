@@ -11,7 +11,7 @@ class Bot(discord.Client):
     
     def __init__(self):
         super().__init__()
-        self.version = "2021.35a"
+        self.version = "2021.35b"
         
         self.twitter_api = self.init_twitter_api()
         self.twitter_user_id = "1356336382722138113" # https://twitter.com/Onura_tv
