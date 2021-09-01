@@ -4,6 +4,8 @@ import os
 from TwitterAPI import TwitterAPI
 from datetime import datetime
 import requests
+import json
+import os.path
 
 class Bot(discord.Client):
     
@@ -21,6 +23,15 @@ class Bot(discord.Client):
     async def on_ready(self):
         activity = discord.Game(f"ver. {self.version}")
         await self.change_presence(status=discord.Status.online, activity=activity)
+        if not os.path.isfile('data.json'):
+            with open('data.json', 'w') as json_file:
+                data = {"twitter_last_tweet_in_text_channel": str(datetime.now())}
+                json.dump(data, json_file)
+                self.twitter_last_tweet_in_text_channel = datetime.now()
+        else:
+            with open('data.json') as json_file:
+                data = json.load(json_file)
+                self.twitter_last_tweet_in_text_channel = datetime.fromisoformat(data['twitter_last_tweet_in_text_channel'])
 
         self.update_loop.start()
         print("[ONURABOT] Bot started.")
@@ -52,6 +63,9 @@ class Bot(discord.Client):
             if tweet_time > self.twitter_last_tweet_in_text_channel:
                 self.twitter_last_tweet_in_text_channel = tweet_time
                 await self.get_channel(self.news_text_channel_id).send(f"https://twitter.com/{self.twitter_user['username']}/status/{tweet['id']}")
+                with open('data.json', 'w') as json_file:
+                    data = {"twitter_last_tweet_in_text_channel": str(tweet_time)}
+                    json.dump(data, json_file)
 
         is_live = self.check_if_live_on_twitch()
         if is_live:
