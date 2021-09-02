@@ -17,21 +17,28 @@ class Bot(discord.Client):
         self.twitter_user_id = "1356336382722138113" # https://twitter.com/Onura_tv
         self.twitter_user = self.get_twitter_user_by_id(self.twitter_user_id)
         self.news_text_channel_id = 807778867719962654
-        self.twitter_last_tweet_in_text_channel = datetime.now() # Should be no problem for now. But it doesn't take care about tweets that got posted in the bot downtime.
+        self.twitter_last_tweet_in_text_channel = datetime.now()
         self.twitch_user_id = "644758191" # https://twitch.tv/onuratv
+        self.twitch_time_last_stream_started = datetime.now()
+        self.twitch_current_stream_announced = False
         
     async def on_ready(self):
         activity = discord.Game(f"ver. {self.version}")
         await self.change_presence(status=discord.Status.online, activity=activity)
         if not os.path.isfile('data.json'):
             with open('data.json', 'w') as json_file:
-                data = {"twitter_last_tweet_in_text_channel": str(datetime.now())}
+                data = {
+                    "twitter_last_tweet_in_text_channel": str(datetime.now()),
+                    "twitch_time_last_stream_started": str(datetime.now())
+                }
                 json.dump(data, json_file)
                 self.twitter_last_tweet_in_text_channel = datetime.now()
+                self.twitch_time_last_stream_started = datetime.now()
         else:
             with open('data.json') as json_file:
                 data = json.load(json_file)
                 self.twitter_last_tweet_in_text_channel = datetime.fromisoformat(data['twitter_last_tweet_in_text_channel'])
+                self.twitch_time_last_stream_started = datetime.fromisoformat(data['twitch_time_last_stream_started'])
 
         self.update_loop.start()
         print("[ONURABOT] Bot started.")
@@ -52,6 +59,14 @@ class Bot(discord.Client):
 
         return list(result)[0]
 
+    def update_json_file(self):
+        with open('data.json', 'w') as json_file:
+            data = {
+                "twitter_last_tweet_in_text_channel": str(self.twitter_last_tweet_in_text_channel),
+                "twitch_time_last_stream_started": str(self.twitch_time_last_stream_started)
+            }
+            json.dump(data, json_file)
+
     @tasks.loop(seconds=60)
     async def update_loop(self):
         result = self.twitter_api.request(f"users/:{self.twitter_user_id}/tweets", {"max_results": 5, "tweet.fields": "created_at"})
@@ -63,13 +78,14 @@ class Bot(discord.Client):
             if tweet_time > self.twitter_last_tweet_in_text_channel:
                 self.twitter_last_tweet_in_text_channel = tweet_time
                 await self.get_channel(self.news_text_channel_id).send(f"https://twitter.com/{self.twitter_user['username']}/status/{tweet['id']}")
-                with open('data.json', 'w') as json_file:
-                    data = {"twitter_last_tweet_in_text_channel": str(tweet_time)}
-                    json.dump(data, json_file)
+                self.update_json_file()
 
-        is_live = self.check_if_live_on_twitch()
+        is_live, current_stream_start = self.check_if_live_on_twitch()
         if is_live:
-            await self.get_channel(self.news_text_channel_id).send("@everyone JETZT LIVE! https://twitch.tv/onuratv")
+            if current_stream_start > self.twitch_time_last_stream_started:
+                await self.get_channel(self.news_text_channel_id).send("@everyone JETZT LIVE! https://twitch.tv/onuratv")
+                self.twitch_time_last_stream_started = current_stream_start
+                self.update_json_file()
 
 
     def check_if_live_on_twitch(self):
@@ -81,9 +97,10 @@ class Bot(discord.Client):
             'Client-Id': twitch_client_id
         }
 
-        r = requests.get(f'https://api.twitch.tv/helix/users?id={self.twitch_user_id}', headers=headers)
+        r = requests.get(f'https://api.twitch.tv/helix/streams?user_id={self.twitch_user_id}', headers=headers)
         data = r.json()
         data = data['data'][0]
-        if data['type'] == 'live': return True
+        stream_start = datetime.fromisoformat(data['started_at'][:-1])
+        if data['type'] == 'live': return True, stream_start
         else: return False
         
