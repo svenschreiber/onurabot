@@ -11,7 +11,7 @@ class Bot(discord.Client):
     
     def __init__(self):
         super().__init__()
-        self.version = "2021.35b"
+        self.version = "2021.35d"
         
         self.twitter_api = self.init_twitter_api()
         self.twitter_user_id = "1356336382722138113" # https://twitter.com/Onura_tv
@@ -77,12 +77,14 @@ class Bot(discord.Client):
             tweet_time = datetime.fromisoformat(str_tweet_time)
             if tweet_time > self.twitter_last_tweet_in_text_channel:
                 self.twitter_last_tweet_in_text_channel = tweet_time
+                print("tweet:", f"https://twitter.com/{self.twitter_user['username']}/status/{tweet['id']}")
                 await self.get_channel(self.news_text_channel_id).send(f"https://twitter.com/{self.twitter_user['username']}/status/{tweet['id']}")
                 self.update_json_file()
 
         is_live, current_stream_start = self.check_if_live_on_twitch()
         if is_live:
             if current_stream_start > self.twitch_time_last_stream_started:
+                print("@everyone JETZT LIVE! https://twitch.tv/onuratv")
                 await self.get_channel(self.news_text_channel_id).send("@everyone JETZT LIVE! https://twitch.tv/onuratv")
                 self.twitch_time_last_stream_started = current_stream_start
                 self.update_json_file()
@@ -99,8 +101,9 @@ class Bot(discord.Client):
 
         r = requests.get(f'https://api.twitch.tv/helix/streams?user_id={self.twitch_user_id}', headers=headers)
         data = r.json()
+        if not data['data']: return False, None
         data = data['data'][0]
         stream_start = datetime.fromisoformat(data['started_at'][:-1])
-        if data['type'] == 'live': return True, stream_start
-        else: return False
+        if data['type'] == 'live': return True, stream_start # I think this is unnecessary to check, because if the stream is offline we get no data as response.
+        else: return False, None
         
